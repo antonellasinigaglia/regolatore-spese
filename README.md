@@ -10,6 +10,7 @@ Web app personale, senza database e senza costi di hosting.
 - registro giornaliero delle spese
 - categoria con menu a tendina
 - budget, speso e residuo automatici
+- vista del budget settimanale equivalente per ogni categoria
 - cuscinetto automatico
 - categorie aggiungibili, rinominabili, modificabili e archiviabili
 - spese annuali separate, con Prime Video a €49
