@@ -39,11 +39,9 @@ function dashboard(){
  <div class="card"><div class="label">Cuscinetto</div><div class="value ${cushion()<0?"danger":""}">${money(cushion())}</div></div>
  <div class="card"><div class="label">Spese registrate</div><div class="value">${state.expenses.length}</div></div>
  </div>
- <div class="section"><h2>Budget settimanale</h2><p class="muted">Il budget mensile resta il riferimento. Qui vedi l'equivalente settimanale, calcolato su 52 settimane.</p>${weeklyRows()}</div>
+
  <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(c=>catRow(c)).join("")}</div>`
 }
-function weekStart(d=new Date()){let x=new Date(d);x.setHours(0,0,0,0);let day=x.getDay();let diff=day===0?-6:1-day;x.setDate(x.getDate()+diff);return x}
-function weeklyRows(){const start=weekStart();const end=new Date(start);end.setDate(start.getDate()+6);return state.categories.filter(c=>c.active).map(c=>{const weekly=Number(c.budget)*12/52;const sw=state.expenses.filter(e=>e.categoryId===c.id&&e.date>=start.toISOString().slice(0,10)&&e.date<=end.toISOString().slice(0,10)).reduce((a,e)=>a+Number(e.amount),0);const rem=weekly-sw;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Settimana: ${money(sw)} di ${money(weekly)} · residuo ${money(rem)}</div><div class="bar"><i style="width:${weekly?Math.min(100,sw/weekly*100):0}%"></i></div></div><span class="${rem<0?'danger':''}">${money(weekly)}</span></div>`}).join("")}
 function totalSpent(){return state.expenses.reduce((a,x)=>a+Number(x.amount),0)}
 function catRow(c){let s=spent(c.id), pct=c.budget?Math.min(100,s/c.budget*100):0;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">${money(s)} di ${money(c.budget)} · residuo ${money(c.budget-s)}</div><div class="bar"><i style="width:${pct}%"></i></div></div><span>${pct>100?"⚠":""}</span></div>`}
 function expensesPage(){
