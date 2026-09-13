@@ -1,0 +1,9 @@
+{
+  "name": "Regolatore spese",
+  "short_name": "Spese",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#111111",
+  "lang": "it"
+}
