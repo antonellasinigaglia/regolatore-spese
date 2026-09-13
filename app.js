@@ -29,7 +29,6 @@ function nav(){return `<div class="nav">${["dashboard","spese","budget","annuali
 function render(){document.getElementById("app").innerHTML=`<main class="shell"><div class="top"><div class="brand">Regolatore spese</div><button class="primary" onclick="addExpense()">+ Spesa</button></div>${nav()}${page==="dashboard"?dashboard():page==="spese"?expensesPage():page==="budget"?budgetPage():page==="annuali"?annualPage():settingsPage()}</main>`}
 function dashboard(){
  const available=state.income-state.savings-totalSpent();
- const week=state.income-state.savings-totalSpent(); 
  return `<div class="hero"><small>Budget operativo</small><h1>${money(state.income-state.savings)}</h1><span>€1.000 accantonati ogni mese</span></div>
  <div class="grid">
  <div class="card"><div class="label">Entrate</div><div class="value">${money(state.income)}</div></div>
@@ -39,8 +38,7 @@ function dashboard(){
  <div class="card"><div class="label">Cuscinetto</div><div class="value ${cushion()<0?"danger":""}">${money(cushion())}</div></div>
  <div class="card"><div class="label">Spese registrate</div><div class="value">${state.expenses.length}</div></div>
  </div>
-
- <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(c=>catRow(c)).join("")}</div>`
+ <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(c=>catRow(c)).join("") || `<div class="empty">Nessuna categoria attiva.</div>`}</div>`
 }
 function totalSpent(){return state.expenses.reduce((a,x)=>a+Number(x.amount),0)}
 function catRow(c){let s=spent(c.id), pct=c.budget?Math.min(100,s/c.budget*100):0;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">${money(s)} di ${money(c.budget)} · residuo ${money(c.budget-s)}</div><div class="bar"><i style="width:${pct}%"></i></div></div><span>${pct>100?"⚠":""}</span></div>`}
@@ -51,10 +49,12 @@ function expensesPage(){
 function budgetPage(){
  const active=state.categories.filter(c=>c.active);
  const archived=state.categories.filter(c=>!c.active);
- return `<div class="section"><div class="actions"><button class="primary" onclick="addCategory()">+ Categoria</button></div><div class="section">${active.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Attiva · speso ${money(spent(c.id))}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Modifica</button></div>`).join("") || `<div class="empty">Nessuna categoria attiva.</div>`}</div>${archived.length?`<div class="section"><details><summary class="muted" style="cursor:pointer">Categorie archiviate (${archived.length})</summary><div style="margin-top:12px">${archived.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Archiviata · speso ${money(spent(c.id))}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Riattiva</button></div>`).join("")}</div></details></div>`:""}`
-}`
+ const activeHtml=active.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Attiva · speso ${money(spent(c.id))}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Modifica</button></div>`).join("") || `<div class="empty">Nessuna categoria attiva.</div>`;
+ const archivedHtml=archived.length ? `<div class="section"><details><summary class="muted" style="cursor:pointer">Categorie archiviate (${archived.length})</summary><div style="margin-top:12px">${archived.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Archiviata · speso ${money(spent(c.id))}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Riattiva</button></div>`).join("")}</div></details></div>` : "";
+ return `<div class="section"><div class="actions"><button class="primary" onclick="addCategory()">+ Categoria</button></div><div class="section">${activeHtml}</div>${archivedHtml}</div>`;
+}
 function annualPage(){
- return `<div class="section"><h2>Spese annuali</h2><p class="muted">Queste spese non entrano nel budget mensile.</p>${state.annual.map(a=>`<div class="row"><div><b>${esc(a.name)}</b><div class="muted">${a.date?fmtDate(a.date):"Data da inserire"} · ${esc(a.note)}</div></div><b>${money(a.amount)}</b></div>`).join("")}</div>`
+ return `<div class="section"><h2>Spese annuali</h2><p class="muted">Queste spese non entrano nel budget mensile.</p>${state.annual.map(a=>`<div class="row"><div><b>${esc(a.name)}</b><div class="muted">${a.date?fmtDate(a.date):"Data da inserire"} · ${esc(a.note)}</div></div><b>${money(a.amount)}</b></div>`).join("")}</div>`;
 }
 function settingsPage(){
  return `<div class="section"><h2>Impostazioni</h2><div class="form settings">
