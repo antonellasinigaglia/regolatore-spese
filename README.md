@@ -1,4 +1,4 @@
-# Regolatore spese
+£# Regolatore spese
 
 Web app personale, senza database e senza costi di hosting.
 
@@ -31,3 +31,4 @@ Web app personale, senza database e senza costi di hosting.
 Dopo la pubblicazione GitHub fornirà l'indirizzo della pagina.
 
 I dati delle spese vengono salvati nel `localStorage` del browser. Fai periodicamente un backup JSON dal menu Impostazioni.
+Test integrazione Supabase
