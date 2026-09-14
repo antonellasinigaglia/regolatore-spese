@@ -54,7 +54,13 @@ async function signUp(){
   const email=document.getElementById("authEmail").value.trim();
   const password=document.getElementById("authPassword").value;
   if(!email||password.length<6)return renderLogin("Inserisci un'email e una password di almeno 6 caratteri.");
-  const {data,error}=await db.auth.signUp({email,password});
+const {data,error}=await db.auth.signUp({
+  email,
+  password,
+  options: {
+    emailRedirectTo: "https://antonellasinigaglia.github.io/regolatore-spese/"
+  }
+});
   if(error)return renderLogin(error.message);
   if(!data.session)return renderLogin("Account creato. Controlla la tua email per confermare l'account, poi accedi.");
   await startApp();
