@@ -29,7 +29,11 @@ function cushion(){return state.income-state.savings-totalBudget()}
 function fmtDate(d){return d?new Date(d+"T12:00:00").toLocaleDateString("it-IT"):""}
 function cache(){localStorage.setItem(KEY,JSON.stringify(state))}
 function nav(){return `<div class="nav">${["dashboard","spese","budget","annuali","impostazioni"].map(p=>`<button class="${page===p?"active":""}" onclick="go('${p}')">${({dashboard:"Dashboard",spese:"Spese",budget:"Budget",annuali:"Annuali",impostazioni:"Impostazioni"})[p]}</button>`).join("")}</div>`}
-function monthNav(){return `<div class="month-nav"><button class="secondary" onclick="changeMonth(-1)">‹</button><div><span class="muted">Mensilità</span><strong>${monthLabel()}</strong></div><button class="secondary" onclick="changeMonth(1)">›</button></div>`}
+function monthNav(){
+  const base=new Date(new Date().getFullYear()-1,0,1);
+  const months=Array.from({length:36},(_,i)=>new Date(base.getFullYear(),i,1));
+  return `<div class="month-nav"><label for="monthSelect" class="muted">Mensilità</label><select id="monthSelect" onchange="selectMonth(this.value)">${months.map(d=>`<option value="${monthKey(d)}" ${monthKey(d)===monthKey()?"selected":""}>${esc(monthLabel(d))}</option>`).join("")}</select></div>`;
+}
 
 function loginPage(message=""){
   return `<main class="shell"><div class="top"><div class="brand">Regolatore spese</div></div>
@@ -137,22 +141,26 @@ function dashboard(){
  const available=state.income-state.savings-totalSpent();
  return `${monthNav()}<div class="hero"><small>Budget operativo</small><h1>${money(state.income-state.savings)}</h1><span>${money(state.savings)} accantonati nel mese</span></div>
  <div class="grid"><div class="card"><div class="label">Entrate</div><div class="value">${money(state.income)}</div></div><div class="card"><div class="label">Risparmio</div><div class="value">${money(state.savings)}</div></div><div class="card"><div class="label">Speso</div><div class="value">${money(totalSpent())}</div></div><div class="card"><div class="label">Budget residuo</div><div class="value">${money(available)}</div></div><div class="card"><div class="label">Cuscinetto</div><div class="value ${cushion()<0?"danger":""}">${money(cushion())}</div></div><div class="card"><div class="label">Spese registrate</div><div class="value">${state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)).length}</div></div></div>
- <div class="section"><h2>Spese imminenti</h2>${upcomingExpenses()}</div>
+ <div class="section upcoming-section"><h2>Spese imminenti</h2>${upcomingExpenses()}</div>
  <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(catRow).join("")||`<div class="empty">Nessuna categoria attiva.</div>`}</div>`;
 }
 function catRow(c){let s=spent(c.id),pct=c.budget?Math.min(100,s/c.budget*100):0;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">${money(s)} di ${money(c.budget)} · residuo ${money(c.budget-s)}</div><div class="bar"><i style="width:${pct}%"></i></div></div><span>${s>c.budget?"⚠":""}</span></div>`}
 
 function nextDueDate(day,from=new Date()){
   if(!day)return null;
-  const d=new Date(from.getFullYear(),from.getMonth(),day);
-  if(d<new Date(from.getFullYear(),from.getMonth(),from.getDate()))d.setMonth(d.getMonth()+1);
+  const today=new Date(from.getFullYear(),from.getMonth(),from.getDate());
+  const d=new Date(from.getFullYear(),from.getMonth(),Math.min(day,new Date(from.getFullYear(),from.getMonth()+1,0).getDate()));
+  if(d<today){
+    const nextMonth=new Date(from.getFullYear(),from.getMonth()+1,1);
+    d.setFullYear(nextMonth.getFullYear(),nextMonth.getMonth(),Math.min(day,new Date(nextMonth.getFullYear(),nextMonth.getMonth()+1,0).getDate()));
+  }
   return d;
 }
 function daysUntil(d){const today=new Date();const a=new Date(today.getFullYear(),today.getMonth(),today.getDate());const b=new Date(d.getFullYear(),d.getMonth(),d.getDate());return Math.round((b-a)/86400000)}
 function upcomingExpenses(){
-  const items=state.categories.filter(c=>c.active&&c.dueDay).map(c=>{const date=nextDueDate(c.dueDay);return {c,date,days:daysUntil(date)}}).filter(x=>x.days>=0).sort((a,b)=>a.date-b.date);
+  const items=state.categories.filter(c=>c.active&&c.dueDay).map(c=>{const date=nextDueDate(c.dueDay);return {c,date,days:daysUntil(date)}}).filter(x=>x.days>=0&&x.days<=5).sort((a,b)=>a.date-b.date);
   if(!items.length)return `<div class="empty">Nessuna spesa imminente.</div>`;
-  return items.map(({c,date,days})=>`<div class="row upcoming-row"><div style="display:grid;grid-template-columns:72px minmax(0,1fr) auto auto;gap:12px;align-items:center;width:100%"><span>${fmtDate(date.toISOString().slice(0,10))}</span><b>${esc(c.name)}</b><span>${money(c.budget)}</span><span class="muted">${days===0?"oggi":days===1?"domani":`-${days} giorni`}</span></div></div>`).join("");
+  return items.map(({c,date,days})=>`<div class="row upcoming-row"><div class="upcoming-date">${fmtDate(date.toISOString().slice(0,10))}</div><b class="upcoming-name">${esc(c.name)}</b><span class="upcoming-amount">${money(c.budget)}</span><span class="muted upcoming-days">${days===0?"oggi":days===1?"domani":`-${days} giorni`}</span></div>`).join("");
 }
 
 function expensesPage(){const month=monthKey().slice(0,7);const list=state.expenses.filter(e=>e.date?.slice(0,7)===month);return `${monthNav()}<div class="section"><h2>Spese</h2><div class="actions"><button class="primary" onclick="addExpense()">+ Aggiungi spesa</button><button class="secondary" onclick="exportCSV()">Esporta CSV</button></div>${list.length?list.map(e=>{let c=state.categories.find(x=>x.id===e.categoryId);return `<div class="expense"><div class="desc">${esc(e.description||"Spesa")}</div><div class="amount">${money(e.amount)}</div><div class="meta">${fmtDate(e.date)} · ${esc(c?.name||"Categoria archiviata")} <button class="secondary" style="padding:3px 7px;margin-left:6px" onclick="deleteExpense('${e.id}')">Elimina</button></div></div>`}).join(""):`<div class="empty">Nessuna spesa registrata per ${esc(monthLabel())}.</div>`}</div>`}
@@ -160,7 +168,11 @@ function budgetPage(){const active=state.categories.filter(c=>c.active),archived
 function annualPage(){return `<div class="section"><h2>Spese annuali</h2><p class="muted">Queste spese non entrano nel budget mensile.</p>${state.annual.map(a=>`<div class="row"><div><b>${esc(a.name)}</b><div class="muted">${a.date?fmtDate(a.date):"Data da inserire"} · ${esc(a.note)}</div></div><b>${money(a.amount)}</b></div>`).join("")}</div>`}
 function settingsPage(){return `${monthNav()}<div class="section"><h2>Impostazioni</h2><div class="form settings"><div class="field"><label>Entrate di ${esc(monthLabel())}</label><input id="income" type="number" step="0.01" value="${state.income}"></div><div class="field"><label>Risparmio di ${esc(monthLabel())}</label><input id="savings" type="number" step="0.01" value="${state.savings}"></div><button class="primary" onclick="saveSettings()">Salva impostazioni</button><div class="actions"><button class="secondary" onclick="exportJSON()">Backup JSON</button><button class="secondary" onclick="document.getElementById('importFile').click()">Importa JSON</button><input id="importFile" type="file" accept=".json" hidden onchange="importJSON(event)"></div></div><div class="section"><h2>Abbonamenti</h2>${state.subscriptions.map(s=>`<div class="row"><div><b>${esc(s.name)}</b><div class="muted">${s.active?"Attivo":"Disdetto"} · ${esc(s.frequency)}</div></div><span>${money(s.amount)}</span></div>`).join("")}</div></div>`}
 function go(p){page=p;render()}
-async function changeMonth(delta){currentMonth.setMonth(currentMonth.getMonth()+delta);try{await loadFromDB();render()}catch(e){alert(e.message)}}
+async function selectMonth(value){
+  const [year,month]=value.split("-").map(Number);
+  currentMonth=new Date(year,month-1,1);
+  try{await loadFromDB();render()}catch(e){alert(e.message)}
+}
 function addExpense(){const active=state.categories.filter(c=>c.active);document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="modal"><div class="modalbox"><h2>Aggiungi spesa</h2><div class="form"><div class="field"><label>Data</label><input id="fdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>Categoria</label><select id="fcat">${active.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></div><div class="field"><label>Descrizione</label><input id="fdesc" placeholder="Es. supermercato"></div><div class="field"><label>Importo €</label><input id="famount" type="number" min="0" step="0.01" placeholder="0,00"></div><div class="actions"><button class="primary" onclick="confirmExpense()">Salva</button><button class="secondary" onclick="closeModal()">Annulla</button></div></div></div></div>`)}
 async function confirmExpense(){const amount=Number(document.getElementById("famount").value);if(!amount||amount<0)return alert("Inserisci un importo valido.");const row={id:crypto.randomUUID(),user_id:currentUser.id,date:document.getElementById("fdate").value,category_id:document.getElementById("fcat").value,description:document.getElementById("fdesc").value.trim(),amount};const {error}=await db.from("expenses").insert(row);if(error)return alert(error.message);closeModal();await loadFromDB();render()}
 async function deleteExpense(id){if(!confirm("Eliminare questa spesa?"))return;const {error}=await db.from("expenses").delete().eq("id",id).eq("user_id",currentUser.id);if(error)return alert(error.message);await loadFromDB();render()}
