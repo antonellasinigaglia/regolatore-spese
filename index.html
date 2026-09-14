@@ -6,11 +6,16 @@
   <meta name="theme-color" content="#111111" />
   <title>Regolatore spese</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <script>
+    const v = Date.now();
+    document.write(`<link rel="stylesheet" href="style.css?v=${v}">`);
+  </script>
 </head>
 <body>
   <div id="app"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=7"></script>
+  <script>
+    document.write(`<script src="app.js?v=${Date.now()}"><\/script>`);
+  </script>
 </body>
 </html>
