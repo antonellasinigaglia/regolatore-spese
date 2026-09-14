@@ -17,5 +17,25 @@
   <script>
     document.write(`<script src="app.js?v=${Date.now()}"><\/script>`);
   </script>
+  <script>
+    (function () {
+      let startY = 0;
+      let pulling = false;
+      document.addEventListener('touchstart', function (e) {
+        if (window.scrollY === 0 && e.touches.length === 1) {
+          startY = e.touches[0].clientY;
+          pulling = true;
+        }
+      }, { passive: true });
+      document.addEventListener('touchend', function (e) {
+        if (!pulling) return;
+        const distance = e.changedTouches[0].clientY - startY;
+        pulling = false;
+        if (window.scrollY === 0 && distance > 80) {
+          window.location.reload();
+        }
+      }, { passive: true });
+    })();
+  </script>
 </body>
 </html>
