@@ -1,3 +1,5 @@
+import { PaddleOcrService } from 'https://cdn.jsdelivr.net/npm/ppu-paddle-ocr@6.6.0/web/index.js';
+
 (function(){
   let enginePromise=null;
   const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
@@ -15,24 +17,18 @@
       || /sconto|coupon|buono|pagamento|contanti|resto|totale da pagare|tessera|punti|fidelity|sacchetto compost|ce93[\s\/]?42/i.test(s);
   }
 
-  function boxOf(poly){
-    const pts=Array.isArray(poly)?poly:[];
-    const xs=pts.map(p=>Array.isArray(p)?p[0]:p?.x).filter(Number.isFinite);
-    const ys=pts.map(p=>Array.isArray(p)?p[1]:p?.y).filter(Number.isFinite);
-    return xs.length?{x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)}:{x0:0,x1:0,y0:0,y1:0};
+  function boxOf(box){
+    if(!box)return {x0:0,x1:0,y0:0,y1:0};
+    return {x0:Number(box.x||0),x1:Number(box.x||0)+Number(box.width||0),y0:Number(box.y||0),y1:Number(box.y||0)+Number(box.height||0)};
   }
 
   function textItems(result){
-    const arr=result?.items||result?.parragraphs||result?.paragraphs||[];
-    return arr.flatMap(x=>{
-      if(typeof x==='string')return [{text:clean(x),score:1,poly:null}];
-      if(x?.text)return [{text:clean(x.text),score:Number(x.score||1),poly:x.poly||x.box}];
-      return [];
-    }).filter(x=>x.text);
+    const arr=result?.results||[];
+    return arr.map(x=>({text:clean(x?.text),score:Number(x?.confidence||1),box:x?.box||null})).filter(x=>x.text);
   }
 
   function parseItems(result){
-    const all=textItems(result).map(x=>({...x,...boxOf(x.poly)})).filter(x=>x.score>=0.25);
+    const all=textItems(result).map(x=>({...x,...boxOf(x.box)})).filter(x=>x.score>=0.25);
     const out=[];
     for(const row of all){
       const p=money(row.text);
@@ -72,17 +68,25 @@
   async function getEngine(){
     if(!enginePromise){
       enginePromise=(async()=>{
-        const mod=await import('https://esm.sh/@paddleocr/paddleocr-js@0.4.2?bundle&target=es2022');
-        const PaddleOCR=mod.PaddleOCR||mod.default?.PaddleOCR||mod.default;
-        if(!PaddleOCR?.create)throw new Error('PaddleOCR.js non disponibile');
-        return PaddleOCR.create({
-          lang:'it',
-          ocrVersion:'PP-OCRv5',
-          worker:false,
-          textDetectionBatchSize:1,
-          textRecognitionBatchSize:4,
-          ortOptions:{backend:'wasm',wasmPaths:'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/'}
+        const ocr=new PaddleOcrService({
+          detection:{
+            maxSideLength:1920,
+            minimumAreaThreshold:12,
+            paddingVertical:0.25,
+            paddingHorizontal:0.35
+          },
+          recognition:{
+            strategy:'per-line',
+            minimumConfidence:0.30,
+            recBatchSize:6,
+            maxCropSourceSideLength:2400,
+            spaceRecovery:true
+          },
+          session:{executionProviders:['wasm'],graphOptimizationLevel:'all'},
+          debugging:{verbose:false}
         });
+        await ocr.initialize();
+        return ocr;
       })();
     }
     return enginePromise;
@@ -95,12 +99,13 @@
     try{
       const ocr=await getEngine();
       box.querySelector('p').textContent='Leggo lo scontrino…';
-      const [result]=await ocr.predict(file,{textRecScoreThresh:0.25,textDetBoxThresh:0.30,textDetThresh:0.20,textDetLimitSideLen:2400,textDetLimitType:'max',textDetMaxSideLimit:4000});
+      const buffer=await file.arrayBuffer();
+      const result=await ocr.recognize(buffer,{flatten:true});
       const raw=rawText(result);
       const items=parseItems(result);
 
       if(!items.length){
-        box.innerHTML='<div class="notice error"><strong>Nessuna riga prodotto riconosciuta.</strong><br><span class="small">OCR completato, ma il parser non ha trovato righe con un prezzo valido.</span><pre style="white-space:pre-wrap;margin-top:12px;max-height:320px;overflow:auto">'+esc(raw||JSON.stringify(result,null,2))+'</pre></div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
+        box.innerHTML='<div class="notice error"><strong>Nessuna riga prodotto riconosciuta.</strong><br><span class="small">OCR completato, ma il parser non ha trovato righe con un prezzo valido.</span><pre style="white-space:pre-wrap;margin-top:12px;max-height:320px;overflow:auto">'+esc(raw||result?.text||JSON.stringify(result,null,2))+'</pre></div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
         return;
       }
 
@@ -108,7 +113,7 @@
       window.receiptDraft={imageFile:file,imageUrl:url,raw,date:window.extractDate(raw)||window.today(),supermarket:window.guessSupermarket(raw),total:totalFromResult(result),items};
       await window.renderReview();
     }catch(e){
-      console.error('PaddleOCR.js',e);
+      console.error('Paddle OCR',e);
       box.innerHTML='<div class="notice error"><strong>Errore OCR.</strong><br><span class="small">'+esc(e?.message||String(e))+'</span></div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
     }
   };
