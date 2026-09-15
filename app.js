@@ -36,45 +36,22 @@ function monthNav(){
 }
 
 function loginPage(message=""){
-  return `<main class="shell"><div class="top"><div class="brand">Regolatore spese</div></div>
-  <div class="section" style="max-width:520px;margin:50px auto">
-    <h2>Accedi al tuo regolatore</h2>
-    <p class="muted">Usa lo stesso account su Mac e telefono. I dati vengono salvati nel database.</p>
-    ${message?`<div class="empty" style="margin:16px 0">${esc(message)}</div>`:""}
-    <div class="form">
-      <div class="field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="La tua email"></div>
-      <div class="field"><label>Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="Almeno 6 caratteri"></div>
-      <div class="actions"><button class="primary" onclick="signIn()">Accedi</button><button class="secondary" onclick="signUp()">Crea account</button></div>
-      <button class="secondary" onclick="anonymousLogin()">Continua senza account, solo su questo dispositivo</button>
-    </div>
-  </div></main>`;
+  return `<main class="shell"><div class="top"><div class="brand">Regolatore spese</div></div><div class="section" style="max-width:620px;margin:50px auto"><h2>Impossibile avviare l'app</h2><p class="muted">${esc(message||"Errore di inizializzazione.")}</p></div></main>`;
 }
-
-async function signIn(){
-  const email=document.getElementById("authEmail").value.trim();
-  const password=document.getElementById("authPassword").value;
-  if(!email||!password)return renderLogin("Inserisci email e password.");
-  const {error}=await db.auth.signInWithPassword({email,password});
-  if(error)return renderLogin(error.message);
-  await startApp();
-}
-async function signUp(){
-  const email=document.getElementById("authEmail").value.trim();
-  const password=document.getElementById("authPassword").value;
-  if(!email||password.length<6)return renderLogin("Inserisci un'email e una password di almeno 6 caratteri.");
-  const {data,error}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://antonellasinigaglia.github.io/regolatore-spese/"}});
-  if(error)return renderLogin(error.message);
-  if(!data.session)return renderLogin("Account creato. Controlla la tua email per confermare l'account, poi accedi.");
-  await startApp();
-}
-async function anonymousLogin(){const {error}=await db.auth.signInAnonymously();if(error)return renderLogin(error.message);await startApp()}
-async function signOut(){await db.auth.signOut();currentUser=null;renderLogin("Sessione chiusa.")}
 function renderLogin(message=""){document.getElementById("app").innerHTML=loginPage(message)}
+async function signIn(){return}
+async function signUp(){return}
+async function anonymousLogin(){const {error}=await db.auth.signInAnonymously();if(error)return renderLogin(error.message);await startApp()}
+async function signOut(){return}
 
 async function startApp(){
-  const {data}=await db.auth.getUser();
-  currentUser=data.user;
-  if(!currentUser)return renderLogin();
+  const {data}=await db.auth.getSession();
+  currentUser=data.session?.user||null;
+  if(!currentUser){
+    const {data:anonymousData,error}=await db.auth.signInAnonymously();
+    if(error){console.error(error);return renderLogin("Non riesco ad avviare la sessione anonima. Verifica che gli accessi anonimi siano abilitati in Supabase.")}
+    currentUser=anonymousData.user;
+  }
   try{await loadFromDB();render()}catch(e){console.error(e);renderLogin("Non riesco a caricare i dati dal database: "+e.message)}
 }
 
@@ -134,7 +111,7 @@ async function seedDefaults(uid){
 }
 
 function render(){
-  document.getElementById("app").innerHTML=`<main class="shell"><div class="top"><div class="brand">Regolatore spese</div><div class="actions"><span class="muted" style="font-size:12px">${esc(currentUser?.email||"Account personale")}</span><button class="secondary" onclick="signOut()">Esci</button><button class="primary" onclick="addExpense()">+ Spesa</button></div></div>${nav()}${page==="dashboard"?dashboard():page==="spese"?expensesPage():page==="budget"?budgetPage():page==="annuali"?annualPage():settingsPage()}</main>`;
+  document.getElementById("app").innerHTML=`<main class="shell"><div class="top"><div class="brand">Regolatore spese</div><div class="actions"><button class="primary" onclick="addExpense()">+ Spesa</button></div></div>${nav()}${page==="dashboard"?dashboard():page==="spese"?expensesPage():page==="budget"?budgetPage():page==="annuali"?annualPage():settingsPage()}</main>`;
 }
 
 function dashboard(){
@@ -190,4 +167,4 @@ function exportCSV(){let lines=[["Data","Categoria","Descrizione","Importo"].joi
 function download(name,data,type){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 async function resetData(){if(!confirm("Ripristinare i dati iniziali? Le spese attuali verranno cancellate."))return;try{await replaceAllData({income:3000,savings:1000,categories:defaultCategories.map(([name,budget])=>({id:crypto.randomUUID(),name,budget,active:true,dueDay:null})),expenses:[],annual:[{id:crypto.randomUUID(),name:"Prime Video",amount:49,date:"",note:"Pagamento unico annuale"}],subscriptions:defaultSubscriptions.map(([name,amount,frequency,active])=>({id:crypto.randomUUID(),name,amount,frequency,active}))});await loadFromDB();render()}catch(e){alert(e.message)}}
 
-db.auth.getSession().then(({data})=>{if(data.session)startApp();else renderLogin()});
+startApp();
