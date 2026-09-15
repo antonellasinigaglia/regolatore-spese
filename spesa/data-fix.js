@@ -2,8 +2,8 @@
   const LEGACY=new Set(['Non alimentare','Altro alimentare']);
 
   async function fixLegacyData(){
-    if(!window.db||!window.user)return false;
-    const uid=window.user.id;
+    if(!db||!user)return false;
+    const uid=user.id;
     const {data:cats,error:ce}=await db.from('spesa_categories').select('id,name').eq('user_id',uid);
     if(ce)throw ce;
     const allCats=cats||[];
@@ -20,7 +20,7 @@
     let changed=false;
     for(const item of items||[]){
       if(!legacyIds.has(item.category_id))continue;
-      const guessed=typeof window.guessCategory==='function'?window.guessCategory(item.raw_description||''):'Altro';
+      const guessed=typeof guessCategory==='function'?guessCategory(item.raw_description||''):'Altro';
       const target=validCats.get(guessed)||validCats.get('Altro');
       if(!target)continue;
       const {error}=await db.from('spesa_receipt_items').update({category_id:target.id,is_food:true}).eq('id',item.id).eq('user_id',uid);
@@ -50,10 +50,10 @@
 
   async function run(){
     for(let i=0;i<20;i++){
-      if(window.user){
+      if(user){
         try{
           const changed=await fixLegacyData();
-          if(changed&&typeof window.go==='function')window.go('dashboard');
+          if(changed&&typeof go==='function')go('dashboard');
         }catch(e){console.error('Data migration error:',e)}
         return;
       }
