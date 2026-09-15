@@ -6,7 +6,7 @@ let session=null,page='home',mode='cloud';
 const money=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Number(n)||0);
 const dateIT=d=>d?new Intl.DateTimeFormat('it-IT').format(new Date(d+'T12:00:00')):'';
 const esc=s=>String(s??'').replace(/[&<>\\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\"':'&quot;',"'":'&#39;'}[c]));
-function nav(){return `<nav class="nav"><button class="${page==='home'?'active':''}" onclick="go('home')">Home</button><button class="${page==='receipts'?'active':''}" onclick="go('receipts')">Acquisti</button><button class="${page==='products'?'active':''}" onclick="go('products')">Prodotti</button></nav>`}
+function nav(){return `<nav class="nav"><button class="${page==='home'?'active':''}" onclick="go('home')">Home</button><button class="${page==='products'?'active':''}" onclick="go('products')">Prodotti</button><button class="${page==='receipts'?'active':''}" onclick="go('receipts')">Acquisti</button></nav>`}
 function go(p){page=p;render()}
 async function boot(){const {data}=await db.auth.getSession();if(data.session){session=data.session;mode='cloud'}else{const r=await db.auth.signInAnonymously();if(!r.error){session=r.data.session;mode='cloud'}else mode='local'}render()}
 async function getReceipts(){if(mode==='local')return [];const {data,error}=await db.from('spesa_receipts').select('id,purchase_date,total_amount,food_amount,non_food_amount,supermarket_id').eq('user_id',session.user.id).order('purchase_date',{ascending:false});if(error){console.error(error);return []}return data||[]}
