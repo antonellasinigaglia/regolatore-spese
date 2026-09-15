@@ -15,18 +15,24 @@
       || /sconto|coupon|buono|pagamento|contanti|resto|totale da pagare|tessera|punti|fidelity|sacchetto compost|ce93[\s\/]?42/i.test(s);
   }
 
+  function boxOf(poly){
+    const pts=Array.isArray(poly)?poly:[];
+    const xs=pts.map(p=>Array.isArray(p)?p[0]:p?.x).filter(Number.isFinite);
+    const ys=pts.map(p=>Array.isArray(p)?p[1]:p?.y).filter(Number.isFinite);
+    return xs.length?{x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)}:{x0:0,x1:0,y0:0,y1:0};
+  }
+
   function textItems(result){
-    const arr=result?.parragraphs||result?.paragraphs||result?.items||[];
+    const arr=result?.items||result?.parragraphs||result?.paragraphs||[];
     return arr.flatMap(x=>{
-      if(typeof x==='string')return [{text:clean(x),score:1}];
+      if(typeof x==='string')return [{text:clean(x),score:1,poly:null}];
       if(x?.text)return [{text:clean(x.text),score:Number(x.score||1),poly:x.poly||x.box}];
-      if(x?.parse?.text)return [{text:clean(x.parse.text),score:Number(x.parse.score||1),poly:x.parse.poly||x.parse.box}];
       return [];
     }).filter(x=>x.text);
   }
 
   function parseItems(result){
-    const all=textItems(result).filter(x=>x.score>=0.25);
+    const all=textItems(result).map(x=>({...x,...boxOf(x.poly)})).filter(x=>x.score>=0.25);
     const out=[];
     for(const row of all){
       const p=money(row.text);
@@ -46,19 +52,7 @@
       if(unitName==='ml')amount/=1000;
 
       const category=window.guessCategory(name);
-      out.push({
-        raw_description:name,
-        quantity,
-        unit_price:p/quantity,
-        line_total:p,
-        package_amount:amount,
-        package_unit:unitName,
-        price_per_base_unit:amount?p/(quantity*amount):null,
-        category,
-        is_food:category!=='Non alimentare',
-        brand:window.guessBrand(name),
-        ocr_score:row.score
-      });
+      out.push({raw_description:name,quantity,unit_price:p/quantity,line_total:p,package_amount:amount,package_unit:unitName,price_per_base_unit:amount?p/(quantity*amount):null,category,is_food:category!=='Non alimentare',brand:window.guessBrand(name),ocr_score:row.score});
     }
     return out;
   }
@@ -75,46 +69,23 @@
     return window.extractTotal(rawText(result));
   }
 
-  async function waitForBrowserDeps(){
-    for(let i=0;i<120;i++){
-      if(window.ort && window.cv) return;
-      await new Promise(r=>setTimeout(r,250));
-    }
-    throw new Error('Runtime OCR non disponibile nel browser');
-  }
-
   async function getEngine(){
     if(!enginePromise){
       enginePromise=(async()=>{
-        await waitForBrowserDeps();
-        const Paddle=await import('https://cdn.jsdelivr.net/npm/esearch-ocr@5.1.5/dist/esearch-ocr.js');
-        const assetsPath='https://cdn.jsdelivr.net/npm/paddleocr-browser@1.0.4/dist/';
-        const dic=await fetch(assetsPath+'ppocr_keys_v1.txt').then(r=>{
-          if(!r.ok)throw new Error('Dizionario OCR non disponibile');
-          return r.text();
-        });
-        const init=Paddle.init||Paddle.default?.init;
-        if(typeof init!=='function')throw new Error('Motore OCR browser non disponibile');
-        return init({
-          det:{input:assetsPath+'ppocr_det.onnx'},
-          rec:{input:assetsPath+'ppocr_rec.onnx',decodeDic:dic},
-          dic,
-          ort:window.ort,
-          node:false,
-          cv:window.cv
+        const mod=await import('https://esm.sh/@paddleocr/paddleocr-js@0.4.2?bundle&target=es2022');
+        const PaddleOCR=mod.PaddleOCR||mod.default?.PaddleOCR||mod.default;
+        if(!PaddleOCR?.create)throw new Error('PaddleOCR.js non disponibile');
+        return PaddleOCR.create({
+          lang:'it',
+          ocrVersion:'PP-OCRv5',
+          worker:false,
+          textDetectionBatchSize:1,
+          textRecognitionBatchSize:4,
+          ortOptions:{backend:'wasm',wasmPaths:'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/'}
         });
       })();
     }
     return enginePromise;
-  }
-
-  function fileToDataUrl(file){
-    return new Promise((resolve,reject)=>{
-      const r=new FileReader();
-      r.onload=()=>resolve(r.result);
-      r.onerror=()=>reject(r.error||new Error('Impossibile leggere la foto'));
-      r.readAsDataURL(file);
-    });
   }
 
   window.scanReceipt=async function(file){
@@ -124,8 +95,7 @@
     try{
       const ocr=await getEngine();
       box.querySelector('p').textContent='Leggo lo scontrino…';
-      const dataUrl=await fileToDataUrl(file);
-      const result=await ocr.ocr(dataUrl);
+      const [result]=await ocr.predict(file,{textRecScoreThresh:0.25,textDetBoxThresh:0.30,textDetThresh:0.20,textDetLimitSideLen:2400,textDetLimitType:'max',textDetMaxSideLimit:4000});
       const raw=rawText(result);
       const items=parseItems(result);
 
@@ -135,18 +105,10 @@
       }
 
       const url=URL.createObjectURL(file);
-      window.receiptDraft={
-        imageFile:file,
-        imageUrl:url,
-        raw,
-        date:window.extractDate(raw)||window.today(),
-        supermarket:window.guessSupermarket(raw),
-        total:totalFromResult(result),
-        items
-      };
+      window.receiptDraft={imageFile:file,imageUrl:url,raw,date:window.extractDate(raw)||window.today(),supermarket:window.guessSupermarket(raw),total:totalFromResult(result),items};
       await window.renderReview();
     }catch(e){
-      console.error('Browser OCR',e);
+      console.error('PaddleOCR.js',e);
       box.innerHTML='<div class="notice error"><strong>Errore OCR.</strong><br><span class="small">'+esc(e?.message||String(e))+'</span></div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
     }
   };
