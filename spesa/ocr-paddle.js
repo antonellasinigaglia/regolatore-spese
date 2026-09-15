@@ -1,9 +1,18 @@
-import { PaddleOcrService } from 'https://cdn.jsdelivr.net/npm/ppu-paddle-ocr@6.6.0/web/index.js';
+/* OCR remoto gratuito, ottimizzato per scontrini.
+   Provider: OCR.space. Il piano Free offre 25.000 richieste/mese,
+   con modalità receipt/table e Engine 3. La chiave viene letta da
+   localStorage, quindi non viene salvata nel repository. */
 
 (function(){
-  let enginePromise=null;
+  const OCR_ENDPOINT='https://api.ocr.space/parse/image';
+  const DEFAULT_KEY='helloworld';
+
   const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
   const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function getKey(){
+    return localStorage.getItem('spesa_ocrspace_key')||DEFAULT_KEY;
+  }
 
   function money(s){
     const matches=String(s||'').match(/\b(\d{1,3}[.,]\d{2})\b/g)||[];
@@ -17,29 +26,39 @@ import { PaddleOcrService } from 'https://cdn.jsdelivr.net/npm/ppu-paddle-ocr@6.
       || /sconto|coupon|buono|pagamento|contanti|resto|totale da pagare|tessera|punti|fidelity|sacchetto compost|ce93[\s\/]?42/i.test(s);
   }
 
-  function boxOf(box){
-    if(!box)return {x0:0,x1:0,y0:0,y1:0};
-    return {x0:Number(box.x||0),x1:Number(box.x||0)+Number(box.width||0),y0:Number(box.y||0),y1:Number(box.y||0)+Number(box.height||0)};
+  function extractDate(t){
+    const m=String(t||'').match(/\b(\d{1,2})[\/.](\d{1,2})[\/.](20\d{2})\b/);
+    return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:null;
   }
 
-  function textItems(result){
-    const arr=result?.results||[];
-    return arr.map(x=>({text:clean(x?.text),score:Number(x?.confidence||1),box:x?.box||null})).filter(x=>x.text);
+  function extractTotal(t){
+    const lines=String(t||'').split(/\n/);
+    for(let i=lines.length-1;i>=0;i--){
+      const m=lines[i].match(/(?:totale\s*(?:euro|€)?|totale da pagare|totale complessivo)[^\d]*(\d+[\.,]\d{2})/i);
+      if(m)return Number(m[1].replace(',','.'));
+    }
+    return 0;
   }
 
-  function parseItems(result){
-    const all=textItems(result).map(x=>({...x,...boxOf(x.box)})).filter(x=>x.score>=0.25);
+  function parseItems(t){
     const out=[];
-    for(const row of all){
-      const p=money(row.text);
-      if(p===null || isNoise(row.text))continue;
-      let name=row.text.replace(/(?:^|\s)\d{1,3}[.,]\d{2}\s*$/,'').trim();
-      name=name.replace(/\s{2,}/g,' ').trim();
-      if(name.length<3 || !/[A-Za-zÀ-ÿ]/.test(name) || isNoise(name))continue;
+    for(const raw of String(t||'').split(/\n/)){
+      const line=clean(raw).replace(/^[-*|]+|[-*|]+$/g,'').trim();
+      if(!line||isNoise(line))continue;
+
+      const ms=[...line.matchAll(/(\d{1,3}[\.,]\d{2})(?!.*\d{1,3}[\.,]\d{2})/g)];
+      if(!ms.length)continue;
+      const m=ms[ms.length-1];
+      const price=Number(m[1].replace(',','.'));
+      if(!Number.isFinite(price)||price<=0||price>500)continue;
+
+      let name=line.slice(0,m.index).replace(/[|*]+/g,' ').replace(/\s{2,}/g,' ').trim();
+      name=name.replace(/^\d+\s*[x×]\s*/i,'').trim();
+      if(name.length<3||!/\p{L}/u.test(name)||isNoise(name))continue;
 
       let quantity=1;
-      const qm=name.match(/^([0-9]+(?:[.,][0-9]+)?)\s*[x×]\s*/i);
-      if(qm){quantity=Number(qm[1].replace(',','.'));name=name.slice(qm[0].length).trim();}
+      const qm=line.match(/^\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*/i);
+      if(qm)quantity=Number(qm[1].replace(',','.'))||1;
 
       const unit=name.match(/(\d+(?:[.,]\d+)?)\s*(kg|g|gr|ml|l)\b/i);
       let amount=unit?Number(unit[1].replace(',','.')):null;
@@ -48,73 +67,79 @@ import { PaddleOcrService } from 'https://cdn.jsdelivr.net/npm/ppu-paddle-ocr@6.
       if(unitName==='ml')amount/=1000;
 
       const category=window.guessCategory(name);
-      out.push({raw_description:name,quantity,unit_price:p/quantity,line_total:p,package_amount:amount,package_unit:unitName,price_per_base_unit:amount?p/(quantity*amount):null,category,is_food:category!=='Non alimentare',brand:window.guessBrand(name),ocr_score:row.score});
+      out.push({
+        raw_description:name,
+        quantity,
+        unit_price:price/quantity,
+        line_total:price,
+        package_amount:amount,
+        package_unit:unitName,
+        price_per_base_unit:amount?price/(quantity*amount):null,
+        category,
+        is_food:category!=='Non alimentare',
+        brand:window.guessBrand(name)
+      });
     }
     return out;
   }
 
-  function rawText(result){return textItems(result).map(x=>x.text).join('\n');}
-
-  function totalFromResult(result){
-    const items=textItems(result);
-    for(const it of [...items].reverse()){
-      if(/totale\s*(euro|€)?|totale da pagare|totale complessivo/i.test(it.text)){
-        const p=money(it.text); if(p!==null)return p;
-      }
-    }
-    return window.extractTotal(rawText(result));
+  async function compressImage(file){
+    if(file.size<=900000)return file;
+    const bitmap=await createImageBitmap(file);
+    const maxSide=1800;
+    const scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(bitmap.width*scale);
+    canvas.height=Math.round(bitmap.height*scale);
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));
+    return blob||file;
   }
 
-  async function getEngine(){
-    if(!enginePromise){
-      enginePromise=(async()=>{
-        const ocr=new PaddleOcrService({
-          detection:{
-            maxSideLength:1920,
-            minimumAreaThreshold:12,
-            paddingVertical:0.25,
-            paddingHorizontal:0.35
-          },
-          recognition:{
-            strategy:'per-line',
-            minimumConfidence:0.30,
-            recBatchSize:6,
-            maxCropSourceSideLength:2400,
-            spaceRecovery:true
-          },
-          session:{executionProviders:['wasm'],graphOptimizationLevel:'all'},
-          debugging:{verbose:false}
-        });
-        await ocr.initialize();
-        return ocr;
-      })();
+  async function ocrSpace(file){
+    const upload=await compressImage(file);
+    const form=new FormData();
+    form.append('file',upload,'receipt.jpg');
+    form.append('language','ita');
+    form.append('isOverlayRequired','false');
+    form.append('detectOrientation','true');
+    form.append('scale','true');
+    form.append('isTable','true');
+    form.append('OCREngine','3');
+
+    const res=await fetch(OCR_ENDPOINT,{method:'POST',headers:{apikey:getKey()},body:form});
+    if(!res.ok)throw new Error(`OCR.space HTTP ${res.status}`);
+    const data=await res.json();
+    if(data.IsErroredOnProcessing||data.OCRExitCode>1){
+      throw new Error(data.ErrorMessage||data.ErrorDetails||'OCR.space non ha potuto elaborare l’immagine');
     }
-    return enginePromise;
+    const text=(data.ParsedResults||[]).map(x=>x.ParsedText||'').join('\n');
+    if(!text.trim())throw new Error('OCR completato ma non ha restituito testo');
+    return text;
   }
 
   window.scanReceipt=async function(file){
     if(!file)return;
     const box=document.getElementById('importbox');
-    box.innerHTML='<div class="card"><p>Carico il lettore OCR…</p><div class="muted small">Elaborazione locale nel browser. Il primo caricamento può richiedere qualche secondo.</div></div>';
+    box.innerHTML='<div class="card"><p>Invio lo scontrino al lettore OCR…</p><div class="muted small">OCR.space, modalità ricevuta. Il piano gratuito è sufficiente per il normale utilizzo.</div></div>';
     try{
-      const ocr=await getEngine();
-      box.querySelector('p').textContent='Leggo lo scontrino…';
-      const buffer=await file.arrayBuffer();
-      const result=await ocr.recognize(buffer,{flatten:true});
-      const raw=rawText(result);
-      const items=parseItems(result);
-
+      const raw=await ocrSpace(file);
+      const items=parseItems(raw);
       if(!items.length){
-        box.innerHTML='<div class="notice error"><strong>Nessuna riga prodotto riconosciuta.</strong><br><span class="small">OCR completato, ma il parser non ha trovato righe con un prezzo valido.</span><pre style="white-space:pre-wrap;margin-top:12px;max-height:320px;overflow:auto">'+esc(raw||result?.text||JSON.stringify(result,null,2))+'</pre></div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
+        box.innerHTML='<div class="notice error"><strong>OCR riuscito, ma non ho trovato righe prodotto.</strong><br><span class="small">Il testo riconosciuto è mostrato qui sotto per poter correggere il parser senza riprovare l’OCR.</span><pre style="white-space:pre-wrap;margin-top:12px;max-height:360px;overflow:auto">'+esc(raw)+'</pre></div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
         return;
       }
-
       const url=URL.createObjectURL(file);
-      window.receiptDraft={imageFile:file,imageUrl:url,raw,date:window.extractDate(raw)||window.today(),supermarket:window.guessSupermarket(raw),total:totalFromResult(result),items};
+      window.receiptDraft={imageFile:file,imageUrl:url,raw,date:extractDate(raw)||window.today(),supermarket:window.guessSupermarket(raw),total:extractTotal(raw),items};
       await window.renderReview();
     }catch(e){
-      console.error('Paddle OCR',e);
-      box.innerHTML='<div class="notice error"><strong>Errore OCR.</strong><br><span class="small">'+esc(e?.message||String(e))+'</span></div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
+      console.error('OCR.space',e);
+      const msg=String(e?.message||e);
+      const keyHelp=/api|key|apikey|401|403|quota|limit/i.test(msg)
+        ? '<br><span class="small">Se la chiave demo non è disponibile, inserisci la tua chiave gratuita OCR.space nelle Impostazioni.</span>'
+        : '';
+      box.innerHTML='<div class="notice error"><strong>Errore OCR.</strong><br><span class="small">'+esc(msg)+'</span>'+keyHelp+'</div><button class="btn" onclick="importPage(document.getElementById(\'content\'))">Riprova</button>';
     }
   };
 })();
