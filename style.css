@@ -48,3 +48,6 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 
 /* A category with exactly zero remaining budget uses neutral black text */
 .category-item:has(.bar i.budget-full) .category-amounts .category-residual{color:#171717!important}
+
+/* Small category icons */
+.category-icon{display:inline-block;width:1.35em;margin-right:3px;font-size:.92em;text-align:center;vertical-align:-1px}
