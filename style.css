@@ -172,3 +172,13 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 @media(prefers-reduced-motion:reduce){
   .mobile-fab{animation:none!important}
 }
+
+
+/* KPI strip: horizontal swipe, 14px minimum text, two columns minimum on responsive screens */
+.grid{display:flex;flex-wrap:nowrap;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:2px 2px 12px;scroll-snap-type:x proximity}
+.grid>.card{flex:0 0 calc((100% - 48px)/5);min-width:0;scroll-snap-align:start}
+.grid .label{font-size:14px!important;line-height:1.35}
+.grid .value,.payment-kpi .value{font-size:clamp(14px,1.8vw,25px)!important;overflow-wrap:anywhere}
+.kpi-note{font-size:14px!important;line-height:1.4}
+@media(max-width:900px){.grid>.card{flex-basis:calc((100% - 24px)/3)}}
+@media(max-width:600px){.grid>.card{flex-basis:calc((100% - 12px)/2)}}
