@@ -20,3 +20,6 @@
 
 /* Keep the whole page background pure white */
 html,body,#app,.shell{background-color:#fff!important}
+
+/* Force pure white page canvas across desktop and installed PWA */
+html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !important; }
