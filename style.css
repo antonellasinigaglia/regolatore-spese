@@ -182,3 +182,32 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 .kpi-note{font-size:14px!important;line-height:1.4}
 @media(max-width:900px){.grid>.card{flex-basis:calc((100% - 24px)/3)}}
 @media(max-width:600px){.grid>.card{flex-basis:calc((100% - 12px)/2)}}
+
+
+/* Responsive KPI layout: fill each row, wrap the last cards instead of horizontal overflow */
+.grid{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  overflow:visible!important;
+  scroll-snap-type:none!important;
+  gap:12px;
+}
+.grid>.card{
+  width:auto!important;
+  min-width:0!important;
+  flex:initial!important;
+  scroll-snap-align:none!important;
+}
+@media(min-width:1200px){
+  .grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+}
+@media(min-width:701px) and (max-width:1199px){
+  .grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+@media(max-width:700px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .grid .card{padding:12px}
+  .grid .label{font-size:14px!important}
+  .grid .value,.payment-kpi .value{font-size:clamp(14px,3vw,22px)!important}
+  .kpi-note{font-size:14px!important}
+}
