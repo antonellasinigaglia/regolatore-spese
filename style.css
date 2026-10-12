@@ -57,6 +57,6 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 
 /* Keep category name and amount aligned in one text column; center the icon alongside both lines */
 .category-main{display:flex;align-items:center;gap:20px;min-width:0}
-.category-icon-wrap{display:flex;align-items:center;justify-content:center;flex:0 0 24px;align-self:stretch}
-.category-icon{width:1.45em;height:1.45em;margin:0;color:#b0b0b0;vertical-align:initial;position:static;flex:none}
+.category-icon-wrap{display:flex;align-items:center;justify-content:center;flex:0 0 32px;align-self:stretch}
+.category-icon{width:1.885em;height:1.885em;margin:0;color:#b0b0b0;vertical-align:initial;position:static;flex:none}
 .category-content{flex:1;min-width:0}
