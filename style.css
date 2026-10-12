@@ -36,3 +36,6 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 .category-expense .muted{font-size:13px;margin-top:3px}
 .category-total{display:flex;justify-content:space-between;gap:12px;padding-top:12px;margin-top:6px;border-top:1px solid #d4e5e1}
 .category-empty{padding:12px 0}
+
+/* Use the same red as the SPESO amount for the cuscinetto and over-budget values */
+.grid .card:nth-child(3) .value,.grid .card.cushion .value,.grid .card:nth-child(5) .value,.danger,.category-amounts .category-residual.over-budget-text{color:#ee1740!important}
