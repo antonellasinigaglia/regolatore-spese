@@ -25,7 +25,7 @@ function monthLabel(d=currentMonth){return d.toLocaleDateString("it-IT",{month:"
 function spent(id){const month=monthKey().slice(0,7);return state.expenses.filter(x=>x.categoryId===id&&x.date?.slice(0,7)===month).reduce((a,x)=>a+Number(x.amount),0)}
 function totalBudget(){return state.categories.filter(c=>c.active).reduce((a,c)=>a+Number(c.budget),0)}
 function totalSpent(){return state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)).reduce((a,x)=>a+Number(x.amount),0)}
-function cushion(){return state.income-state.savings-totalBudget()}
+function cushion(){const remainingBudget=state.categories.filter(c=>c.active).reduce((sum,c)=>sum+Math.max(0,Number(c.budget)-spent(c.id)),0);return state.income-state.savings-totalSpent()-remainingBudget}
 function fmtDate(d){return d?new Date(d+"T12:00:00").toLocaleDateString("it-IT"):""}
 function cache(){localStorage.setItem(KEY,JSON.stringify(state))}
 function nav(){return `<div class="nav">${["dashboard","spese","budget","annuali","impostazioni"].map(p=>`<button class="${page===p?"active":""}" onclick="go('${p}')">${({dashboard:"Dashboard",spese:"Spese",budget:"Budget",annuali:"Annuali",impostazioni:"Impostazioni"})[p]}</button>`).join("")}</div>`}
