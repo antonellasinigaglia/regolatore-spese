@@ -325,3 +325,19 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
   .kpi-sticky .grid .muted,.kpi-sticky .grid .payment-label,.kpi-sticky .grid .payment-label span{font-size:14px!important}
   .mobile-fab{font-size:16px!important}
 }
+
+
+/* Enforce the 14px minimum across the entire responsive app, including nested UI */
+@media(max-width:900px){
+  #app, #app *:not(svg):not(path):not(circle):not(rect):not(line):not(polyline):not(polygon){
+    font-size:max(14px, 1em)!important;
+  }
+  #app svg{font-size:initial!important}
+  #app .hero-residual h1{font-size:34px!important}
+  #app .brand{font-size:22px!important}
+  #app .section h2{font-size:22px!important}
+  #app .grid .label{font-size:14px!important}
+  #app .grid .value{font-size:clamp(18px,2.8vw,25px)!important}
+  #app .grid .kpi-note{font-size:14px!important}
+  #app .eyebrow,#app .upcoming-count,#app .upcoming-details span,#app .upcoming-date-badge span{font-size:14px!important}
+}
