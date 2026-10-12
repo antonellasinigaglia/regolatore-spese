@@ -45,3 +45,6 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 
 /* Match the hero and summary remaining-budget amounts using the lighter Tiffany blue */
 .hero-residual h1,.grid .card:nth-child(4) .value,.category-amounts .category-residual{color:#39a6c2!important}
+
+/* A category with exactly zero remaining budget uses neutral black text */
+.category-item:has(.bar i.budget-full) .category-amounts .category-residual{color:#171717!important}
