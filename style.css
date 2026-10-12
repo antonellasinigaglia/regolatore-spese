@@ -147,3 +147,28 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
   .grid .card{padding:14px}
   .grid .value{font-size:clamp(19px,1.9vw,25px)}
 }
+
+
+/* Floating add-expense action: stronger elevation, gentle entrance, safe spacing */
+@keyframes fab-enter{
+  from{opacity:0;transform:translate3d(0,18px,0) scale(.96)}
+  to{opacity:1;transform:translate3d(0,0,0) scale(1)}
+}
+@media(max-width:700px){
+  .mobile-fab{
+    right:calc(28px + env(safe-area-inset-right));
+    bottom:calc(28px + env(safe-area-inset-bottom));
+    box-shadow:0 12px 28px rgba(0,0,0,.28),0 3px 8px rgba(0,0,0,.16);
+    animation:fab-enter .42s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .shell{padding-right:24px;padding-bottom:130px;padding-left:24px}
+  .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .grid .card{padding:12px;min-width:0}
+  .grid .label{font-size:10px;line-height:1.35}
+  .grid .value{font-size:clamp(15px,2.6vw,21px);overflow-wrap:anywhere}
+  .payment-kpi .value{font-size:clamp(15px,2.6vw,21px)}
+  .kpi-note{font-size:10px;overflow-wrap:anywhere}
+}
+@media(prefers-reduced-motion:reduce){
+  .mobile-fab{animation:none!important}
+}
