@@ -51,3 +51,6 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 
 /* Minimal black outline category icons */
 .category-icon{display:inline-block;width:1.35em;height:1.35em;margin-right:20px;color:#454545;vertical-align:middle;flex:none;position:relative;top:.42em}
+
+/* Zero remaining category budget: regular weight, not bold */
+.category-amounts .category-residual.zero-residual{font-weight:400!important}
