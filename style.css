@@ -341,3 +341,32 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
   #app .grid .kpi-note{font-size:14px!important}
   #app .eyebrow,#app .upcoming-count,#app .upcoming-details span,#app .upcoming-date-badge span{font-size:14px!important}
 }
+
+
+/* Verified mobile fix: upcoming-payment secondary text and amount must be clearly readable */
+@media(max-width:900px){
+  #app .upcoming-details>span,
+  #app .upcoming-details>span .payment-inline,
+  #app .upcoming-details>span .payment-inline *{
+    font-size:16px!important;
+    line-height:1.4!important;
+  }
+  #app .upcoming-amount{
+    font-size:20px!important;
+    line-height:1.2!important;
+    font-weight:750!important;
+  }
+  #app .upcoming-date-badge strong{font-size:20px!important}
+  #app .upcoming-date-badge span{font-size:14px!important;letter-spacing:0!important}
+  #app .upcoming-dashboard .eyebrow,
+  #app .upcoming-dashboard .upcoming-count{font-size:14px!important}
+}
+@media(max-width:700px){
+  #app .upcoming-card{gap:12px;padding:12px}
+  #app .upcoming-details{gap:5px;min-width:0}
+  #app .upcoming-details>strong{font-size:18px!important;line-height:1.25!important}
+  #app .upcoming-details>span,
+  #app .upcoming-details>span .payment-inline,
+  #app .upcoming-details>span .payment-inline *{font-size:16px!important}
+  #app .upcoming-amount{font-size:20px!important}
+}
