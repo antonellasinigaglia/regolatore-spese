@@ -98,3 +98,13 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
   .top .actions{display:none}
   .shell{padding-bottom:110px}
 }
+
+
+/* Illustrated filled icons for payment methods */
+.payment-label{display:flex;align-items:center;gap:8px}
+.payment-icon{display:inline-block;width:22px;height:22px;flex:none;vertical-align:middle}
+.payment-icon-cash{color:#23966b}
+.payment-icon-card{color:#4778d0}
+.payment-inline{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.payment-inline .payment-icon{width:16px;height:16px}
+.upcoming-details .payment-inline{font-size:12px}
