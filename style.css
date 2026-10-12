@@ -211,3 +211,45 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
   .grid .value,.payment-kpi .value{font-size:clamp(14px,3vw,22px)!important}
   .kpi-note{font-size:14px!important}
 }
+
+
+/* Mobile KPI header: stays at the top while browsing categories */
+.kpi-sticky{position:relative}
+@media(max-width:700px){
+  .kpi-sticky{
+    position:sticky;
+    top:0;
+    z-index:900;
+    margin:0 -14px 14px;
+    padding:8px 14px 7px;
+    background:rgba(255,255,255,.97);
+    border-bottom:1px solid #e7e7e2;
+    box-shadow:0 5px 14px rgba(0,0,0,.08);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+  }
+  .kpi-sticky .grid{
+    display:flex!important;
+    flex-wrap:nowrap!important;
+    overflow-x:auto!important;
+    gap:8px!important;
+    padding:0 0 5px!important;
+    margin:0;
+    scrollbar-width:none;
+  }
+  .kpi-sticky .grid::-webkit-scrollbar{display:none}
+  .kpi-sticky .grid>.card{
+    flex:0 0 148px!important;
+    min-height:0!important;
+    padding:9px 11px!important;
+    border-radius:13px;
+  }
+  .kpi-sticky .grid .label{font-size:14px!important;line-height:1.2}
+  .kpi-sticky .grid .value,.kpi-sticky .grid .payment-kpi .value{
+    font-size:14px!important;
+    line-height:1.25;
+    margin-top:4px;
+  }
+  .kpi-sticky .grid .kpi-note{font-size:14px!important;line-height:1.2;margin-top:3px}
+  .kpi-sticky .payment-icon{width:16px;height:16px}
+}
