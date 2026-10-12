@@ -108,3 +108,20 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 .payment-inline{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .payment-inline .payment-icon{width:16px;height:16px}
 .upcoming-details .payment-inline{font-size:12px}
+
+
+/* Ensure the floating add-expense action appears on narrow/touch layouts */
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .mobile-fab {
+    display: flex !important;
+    position: fixed !important;
+    right: max(18px, env(safe-area-inset-right)) !important;
+    bottom: calc(18px + env(safe-area-inset-bottom)) !important;
+    z-index: 99999 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  .top .actions { display: none !important; }
+  .shell { padding-bottom: 110px !important; }
+}
