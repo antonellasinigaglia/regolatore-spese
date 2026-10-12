@@ -50,4 +50,4 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 .category-item:has(.bar i.budget-full) .category-amounts .category-residual{color:#171717!important}
 
 /* Minimal black outline category icons */
-.category-icon{display:inline-block;width:1.15em;height:1.15em;margin-right:6px;color:#171717;vertical-align:-.18em;flex:none}
+.category-icon{display:inline-block;width:1.35em;height:1.35em;margin-right:20px;color:#454545;vertical-align:middle;flex:none;position:relative;top:.42em}
