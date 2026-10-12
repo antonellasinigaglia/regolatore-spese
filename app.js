@@ -36,22 +36,29 @@ function monthNav(){
 }
 
 function loginPage(message=""){
-  return `<main class="shell"><div class="top"><div class="brand">Regolatore spese</div></div><div class="section" style="max-width:620px;margin:50px auto"><h2>Impossibile avviare l'app</h2><p class="muted">${esc(message||"Errore di inizializzazione.")}</p></div></main>`;
+  return `<main class="shell"><div class="top"><div class="brand">Regolatore spese</div></div><div class="section" style="max-width:620px;margin:50px auto"><h2>Accedi per vedere le tue spese</h2><p class="muted">Usa lo stesso account Google collegato al tuo iPhone per sincronizzare budget e movimenti tra dispositivi.</p>${message?`<p class="error-message">${esc(message)}</p>`:""}<button class="primary" style="width:100%;margin-top:16px" onclick="signInGoogle()">Continua con Google</button></div></main>`;
 }
 function renderLogin(message=""){document.getElementById("app").innerHTML=loginPage(message)}
-async function signIn(){return}
-async function signUp(){return}
-async function anonymousLogin(){const {error}=await db.auth.signInAnonymously();if(error)return renderLogin(error.message);await startApp()}
-async function signOut(){return}
+async function signInGoogle(){
+  const {error}=await db.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin+window.location.pathname}});
+  if(error)renderLogin("Accesso Google non riuscito: "+error.message);
+}
+async function linkGoogleAccount(){
+  if(!currentUser)return renderLogin("Sessione non disponibile. Ricarica la pagina.");
+  const {error}=await db.auth.linkIdentity({provider:"google",options:{redirectTo:window.location.origin+window.location.pathname}});
+  if(error)alert("Non riesco a collegare Google: "+error.message+"\\nVerifica che Google OAuth e il collegamento manuale delle identità siano abilitati in Supabase.");
+}
+async function switchToGoogle(){
+  if(!confirm("Uscire da questo profilo locale e accedere con Google? I dati di questo profilo non verranno cancellati, ma vedrai quelli dell'account Google."))return;
+  await db.auth.signOut();
+  signInGoogle();
+}
+async function signOut(){await db.auth.signOut();currentUser=null;renderLogin()}
 
 async function startApp(){
   const {data}=await db.auth.getSession();
   currentUser=data.session?.user||null;
-  if(!currentUser){
-    const {data:anonymousData,error}=await db.auth.signInAnonymously();
-    if(error){console.error(error);return renderLogin("Non riesco ad avviare la sessione anonima. Verifica che gli accessi anonimi siano abilitati in Supabase.")}
-    currentUser=anonymousData.user;
-  }
+  if(!currentUser){return renderLogin()}
   try{await loadFromDB();render()}catch(e){console.error(e);renderLogin("Non riesco a caricare i dati dal database: "+e.message)}
 }
 
@@ -143,7 +150,7 @@ function upcomingExpenses(){
 function expensesPage(){const month=monthKey().slice(0,7);const list=state.expenses.filter(e=>e.date?.slice(0,7)===month);return `${monthNav()}<div class="section"><h2>Spese</h2><div class="actions"><button class="primary" onclick="addExpense()">+ Aggiungi spesa</button><button class="secondary" onclick="exportCSV()">Esporta CSV</button></div>${list.length?list.map(e=>{let c=state.categories.find(x=>x.id===e.categoryId);return `<div class="expense"><div class="desc">${esc(e.description||"Spesa")}</div><div class="amount">${money(e.amount)}</div><div class="meta">${fmtDate(e.date)} · ${esc(c?.name||"Categoria archiviata")} <button class="secondary" style="padding:3px 7px;margin-left:6px" onclick="deleteExpense('${e.id}')">Elimina</button></div></div>`}).join(""):`<div class="empty">Nessuna spesa registrata per ${esc(monthLabel())}.</div>`}</div>`}
 function budgetPage(){const active=state.categories.filter(c=>c.active),archived=state.categories.filter(c=>!c.active);const activeHtml=active.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Attiva · speso ${money(spent(c.id))}${c.dueDay?` · ricorrente il ${String(c.dueDay).padStart(2,"0")} del mese`:""}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Modifica</button></div>`).join("")||`<div class="empty">Nessuna categoria attiva.</div>`;const archivedHtml=archived.length?`<div class="section"><details><summary class="muted" style="cursor:pointer">Categorie archiviate (${archived.length})</summary><div style="margin-top:12px">${archived.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Archiviata · speso ${money(spent(c.id))}${c.dueDay?` · ricorrente il ${String(c.dueDay).padStart(2,"0")} del mese`:""}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Riattiva</button></div>`).join("")}</div></details></div>`:"";return `${monthNav()}<div class="section"><div class="actions"><button class="primary" onclick="addCategory()">+ Categoria</button></div><div class="section">${activeHtml}</div>${archivedHtml}</div>`}
 function annualPage(){return `<div class="section"><h2>Spese annuali</h2><p class="muted">Queste spese non entrano nel budget mensile.</p>${state.annual.map(a=>`<div class="row"><div><b>${esc(a.name)}</b><div class="muted">${a.date?fmtDate(a.date):"Data da inserire"} · ${esc(a.note)}</div></div><b>${money(a.amount)}</b></div>`).join("")}</div>`}
-function settingsPage(){return `${monthNav()}<div class="section"><h2>Impostazioni</h2><div class="form settings"><div class="field"><label>Entrate di ${esc(monthLabel())}</label><input id="income" type="number" step="0.01" value="${state.income}"></div><div class="field"><label>Risparmio di ${esc(monthLabel())}</label><input id="savings" type="number" step="0.01" value="${state.savings}"></div><button class="primary" onclick="saveSettings()">Salva impostazioni</button><div class="actions"><button class="secondary" onclick="exportJSON()">Backup JSON</button><button class="secondary" onclick="document.getElementById('importFile').click()">Importa JSON</button><input id="importFile" type="file" accept=".json" hidden onchange="importJSON(event)"></div></div><div class="section"><h2>Abbonamenti</h2>${state.subscriptions.map(s=>`<div class="row"><div><b>${esc(s.name)}</b><div class="muted">${s.active?"Attivo":"Disdetto"} · ${esc(s.frequency)}</div></div><span>${money(s.amount)}</span></div>`).join("")}</div></div>`}
+function settingsPage(){return `${monthNav()}<div class="section"><h2>Impostazioni</h2><div class="form settings"><div class="field"><label>Entrate di ${esc(monthLabel())}</label><input id="income" type="number" step="0.01" value="${state.income}"></div><div class="field"><label>Risparmio di ${esc(monthLabel())}</label><input id="savings" type="number" step="0.01" value="${state.savings}"></div><button class="primary" onclick="saveSettings()">Salva impostazioni</button><div class="actions"><button class="secondary" onclick="exportJSON()">Backup JSON</button><button class="secondary" onclick="document.getElementById('importFile').click()">Importa JSON</button><input id="importFile" type="file" accept=".json" hidden onchange="importJSON(event)"></div></div><div class="section"><h2>Sincronizzazione</h2><p class="muted">${currentUser?.is_anonymous?"Questo dispositivo usa un profilo anonimo. Per conservare i dati già presenti, premi «Collega Google a questo account» su iPhone prima di accedere da altri dispositivi.":"Account collegato: "+esc(currentUser?.email||"Google")}</p>${currentUser?.is_anonymous?`<div class="actions"><button class="primary" onclick="linkGoogleAccount()">Collega Google a questo account</button><button class="secondary" onclick="switchToGoogle()">Accedi con Google su questo dispositivo</button></div>`:`<div class="actions"><button class="secondary" onclick="signOut()">Esci dall'account</button></div>`}</div><div class="section"><h2>Abbonamenti</h2>${state.subscriptions.map(s=>`<div class="row"><div><b>${esc(s.name)}</b><div class="muted">${s.active?"Attivo":"Disdetto"} · ${esc(s.frequency)}</div></div><span>${money(s.amount)}</span></div>`).join("")}</div></div>`}
 function go(p){page=p;render()}
 async function selectMonth(value){
   const [year,month]=value.split("-").map(Number);
