@@ -13,7 +13,7 @@ const defaultSubscriptions=[
   ["ChatGPT Go",7.99,"mensile",true],["Prime Video",49,"annuale",true],
   ["Netflix",0,"",false],["Integratori",0,"",false]
 ];
-let state={income:3000,savings:1000,categories:[],expenses:[],annual:[],subscriptions:[],month:null};
+let state={income:3000,savings:1000,cashBudget:0,categories:[],expenses:[],annual:[],subscriptions:[],month:null};
 let page="dashboard";
 let expandedCategoryId=null;
 let currentUser=null;
@@ -26,6 +26,9 @@ function monthLabel(d=currentMonth){return d.toLocaleDateString("it-IT",{month:"
 function spent(id){const month=monthKey().slice(0,7);return state.expenses.filter(x=>x.categoryId===id&&x.date?.slice(0,7)===month).reduce((a,x)=>a+Number(x.amount),0)}
 function totalBudget(){return state.categories.filter(c=>c.active).reduce((a,c)=>a+Number(c.budget),0)}
 function totalSpent(){return state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)).reduce((a,x)=>a+Number(x.amount),0)}
+function cashSpent(){return state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)&&x.paymentMethod==="cash").reduce((a,x)=>a+Number(x.amount),0)}
+function cardSpent(){return state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)&&x.paymentMethod!=="cash").reduce((a,x)=>a+Number(x.amount),0)}
+function effectivePaymentMethod(categoryId,amount){const c=state.categories.find(x=>x.id===categoryId);if(!c||c.paymentMethod!=="cash")return "card";const remaining=Number(state.cashBudget||0)-cashSpent();if(Number(amount||0)<=0)return remaining>0?"cash":"card";return Number(amount)<=remaining+0.005?"cash":"card"}
 function cushion(){const remainingBudget=state.categories.filter(c=>c.active).reduce((sum,c)=>sum+Math.max(0,Number(c.budget)-spent(c.id)),0);return state.income-state.savings-totalSpent()-remainingBudget}
 function fmtDate(d){return d?new Date(d+"T12:00:00").toLocaleDateString("it-IT"):""}
 function cache(){localStorage.setItem(KEY,JSON.stringify(state))}
@@ -65,22 +68,23 @@ async function startApp(){
 
 async function ensureMonthlySettings(uid){
   const key=monthKey();
-  const {data,error}=await db.from("monthly_settings").select("income,savings").eq("user_id",uid).eq("month",key).maybeSingle();
+  const {data,error}=await db.from("monthly_settings").select("income,savings,cash_budget").eq("user_id",uid).eq("month",key).maybeSingle();
   if(error)throw error;
   if(data)return data;
   const previous=new Date(currentMonth);previous.setMonth(previous.getMonth()-1);
   const previousKey=monthKey(previous);
-  const prev=await db.from("monthly_settings").select("income,savings").eq("user_id",uid).eq("month",previousKey).maybeSingle();
+  const prev=await db.from("monthly_settings").select("income,savings,cash_budget").eq("user_id",uid).eq("month",previousKey).maybeSingle();
   if(prev.error)throw prev.error;
   let income=Number(prev.data?.income??0);
   let savings=Number(prev.data?.savings??0);
+  let cashBudget=Number(prev.data?.cash_budget??0);
   if(!prev.data){
     const legacy=await db.from("settings").select("income,savings").eq("user_id",uid).maybeSingle();
     if(legacy.error)throw legacy.error;
     income=Number(legacy.data?.income??3000);
     savings=Number(legacy.data?.savings??1000);
   }
-  const created=await db.from("monthly_settings").insert({user_id:uid,month:key,income,savings}).select("income,savings").single();
+  const created=await db.from("monthly_settings").insert({user_id:uid,month:key,income,savings,cash_budget:cashBudget}).select("income,savings,cash_budget").single();
   if(created.error)throw created.error;
   return created.data;
 }
@@ -89,8 +93,8 @@ async function loadFromDB(){
   const uid=currentUser.id;
   const [monthly,categories,expenses,annual,subscriptions]=await Promise.all([
     ensureMonthlySettings(uid),
-    db.from("categories").select("id,name,budget,active,due_day,due_date").eq("user_id",uid).order("name"),
-    db.from("expenses").select("id,date,category_id,description,amount").eq("user_id",uid).order("date",{ascending:false}),
+    db.from("categories").select("id,name,budget,active,due_day,due_date,payment_method").eq("user_id",uid).order("name"),
+    db.from("expenses").select("id,date,category_id,description,amount,payment_method").eq("user_id",uid).order("date",{ascending:false}),
     db.from("annual_expenses").select("id,name,amount,date,note").eq("user_id",uid).order("name"),
     db.from("subscriptions").select("id,name,amount,frequency,active").eq("user_id",uid).order("name")
   ]);
@@ -102,9 +106,10 @@ async function loadFromDB(){
   state={
     income:Number(monthly.income??3000),
     savings:Number(monthly.savings??1000),
+    cashBudget:Number(monthly.cash_budget??0),
     month:monthKey(),
-    categories:(categories.data||[]).map(c=>({id:c.id,name:c.name,budget:Number(c.budget),active:c.active,dueDay:Number(c.due_day||c.due_date?.slice(8,10)||0)||null})),
-    expenses:(expenses.data||[]).map(e=>({id:e.id,date:e.date,categoryId:e.category_id,description:e.description,amount:Number(e.amount)})),
+    categories:(categories.data||[]).map(c=>({id:c.id,name:c.name,budget:Number(c.budget),active:c.active,dueDay:Number(c.due_day||c.due_date?.slice(8,10)||0)||null,paymentMethod:c.payment_method||"card"})),
+    expenses:(expenses.data||[]).map(e=>({id:e.id,date:e.date,categoryId:e.category_id,description:e.description,amount:Number(e.amount),paymentMethod:e.payment_method||"card"})),
     annual:(annual.data||[]).map(a=>({id:a.id,name:a.name,amount:Number(a.amount),date:a.date||"",note:a.note||""})),
     subscriptions:(subscriptions.data||[]).map(s=>({id:s.id,name:s.name,amount:Number(s.amount),frequency:s.frequency||"",active:s.active}))
   };
@@ -124,11 +129,11 @@ function render(){
 
 function dashboard(){
  const available=state.income-state.savings-totalSpent();
- return `${monthNav()}<div class="hero hero-residual"><small>Budget residuo</small><h1>${money(available)}</h1><span>Disponibile questo mese dopo le spese registrate</span></div><div class="operating-budget"><span>Budget operativo</span><strong>${money(state.income-state.savings)}</strong><span class="muted"> · ${money(state.savings)} accantonati</span></div>
- <div class="grid"><div class="card"><div class="label">Entrate</div><div class="value">${money(state.income)}</div></div><div class="card"><div class="label">Risparmio</div><div class="value">${money(state.savings)}</div></div><div class="card"><div class="label">Speso</div><div class="value">-${money(totalSpent())}</div></div><div class="card"><div class="label">Budget residuo</div><div class="value">${money(available)}</div></div><div class="card"><div class="label">Cuscinetto</div><div class="value ${cushion()<0?"danger":""}">${money(cushion())}</div></div><div class="card"><div class="label">Spese registrate</div><div class="value">${state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)).length}</div></div></div>
- <div class="section upcoming-section"><h2>Spese imminenti</h2>${upcomingExpenses()}</div>
- <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(catRow).join("")||`<div class="empty">Nessuna categoria attiva.</div>`}</div>`;
+ return \`${monthNav()}${upcomingExpenses()}<div class="hero hero-residual"><small>Budget residuo</small><h1>${money(available)}</h1><span>Disponibile questo mese dopo le spese registrate</span></div><div class="operating-budget"><span>Budget operativo</span><strong>${money(state.income-state.savings)}</strong><span class="muted"> · ${money(state.savings)} accantonati</span></div>
+ <div class="grid"><div class="card"><div class="label">Entrate</div><div class="value">${money(state.income)}</div></div><div class="card"><div class="label">Risparmio</div><div class="value">${money(state.savings)}</div></div><div class="card"><div class="label">Speso totale</div><div class="value">-${money(totalSpent())}</div></div><div class="card"><div class="label">Budget residuo</div><div class="value">${money(available)}</div></div><div class="card"><div class="label">Cuscinetto</div><div class="value ${cushion()<0?"danger":""}">${money(cushion())}</div></div><div class="card"><div class="label">Spese registrate</div><div class="value">${state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)).length}</div></div><div class="card payment-kpi cash-kpi"><div class="label">Pagato in contanti</div><div class="value">${money(cashSpent())}</div><div class="muted kpi-note">Budget ${money(state.cashBudget)} · residuo ${money(state.cashBudget-cashSpent())}</div></div><div class="card payment-kpi card-kpi"><div class="label">Pagato con carta</div><div class="value">${money(cardSpent())}</div><div class="muted kpi-note">Spese assegnate automaticamente alla carta</div></div></div>
+ <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(catRow).join("")||\`<div class="empty">Nessuna categoria attiva.</div>\`}</div>\`;
 }
+
 function categoryIcon(name){const n=String(name||"").toLowerCase();let paths;if(/mounjaro|yasminelle/.test(n))paths='<g transform="rotate(-45 12 12)"><rect x="8" y="3" width="8" height="18" rx="4"/><path d="M8 12h8"/></g>';else if(/hype/.test(n))paths='<path d="M3 10h18v10H3z"/><path d="M3 10l2-6h14l2 6M8 14h8"/>';else if(/yasminelle|mounjaro|medicin/.test(n))paths='<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>';else if(/farmacia|farmac/.test(n))paths='<path d="M4 21V7l8-4 8 4v14"/><path d="M2 21h20M9 21v-6h6v6M12 7v5M9.5 9.5h5"/>';else if(/fastweb|telefono|internet|icloud|chatgpt|abbonament|netflix|prime|streaming/.test(n))paths='<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/>';else if(/estetista|beauty|make.?up|rossetto/.test(n))paths='<path d="M8 8h8v13H8z"/><path d="M9 8V5l3-3 3 3v3M8 12h8"/>';else if(/commercialista|budget/.test(n))paths='<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2m4 0h2m-8 4h2m4 0h2m-8 3h2m4 0h2"/>';else if(/comehome|cene fuori|ristorant|aliment|spesa|supermercat|cibo|food/.test(n))paths='<path d="M3 3v7a3 3 0 0 0 6 0V3M6 3v18M18 3v18M18 3c-3 3-3 7 0 9"/>';else if(/affitto|casa/.test(n))paths='<path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9"/><path d="M9 21v-7h6v7"/>';else if(/trasport|auto|benzina|carburante|parchegg|treno|mezzi/.test(n))paths='<path d="M5 17h14l1-6-2-5H6l-2 5 1 6Z"/><path d="M4 11h16M7 17v3m10-3v3M7 14h.01M17 14h.01"/>';else if(/gatt|animali|veterin/.test(n))paths='<path d="M8 11 5 5 3 9v5c0 4 3 7 9 7s9-3 9-7V9l-2-4-3 6"/><path d="M9 15h.01M15 15h.01"/>';else if(/gelsia|luce|energia|gas|elettric/.test(n))paths='<path d="M9 18h6m-5 3h4m-2-20a7 7 0 0 0-4 12.7c.8.6 1 1.3 1 2.3h6c0-1 .2-1.7 1-2.3A7 7 0 0 0 11 1Z"/>';else if(/acquist|shopping|vestit|abbigliament/.test(n))paths='<path d="M5 8h14l1 13H4L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>';else if(/svago|viagg|vacanz|cinema|hobb/.test(n))paths='<path d="M3 7h18v10H3z"/><path d="m8 7 3 10m5-10 3 10M3 12h18"/>';else if(/igiene|pulizia|cura/.test(n))paths='<path d="M10 3h4m-3 0v5l-4 4v8h10v-8l-4-4V3"/><path d="M8 14h8"/>';else if(/risparmi|invest/.test(n))paths='<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M7 7V4h10v3m-3 6h3"/>';else paths='<path d="M20 13 11 22l-9-9V3h10l8 10Z"/><circle cx="7" cy="7" r="1"/>';return '<svg class="category-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+paths+'</svg>'}
 function catRow(c){let s=spent(c.id),over=s>c.budget,full=c.budget>0&&s===c.budget,pct=c.budget?Math.min(100,s/c.budget*100):0,open=expandedCategoryId===c.id;return `<div class="category-item"><div class="row category-row" role="button" tabindex="0" aria-expanded="${open}" onclick="toggleCategoryDetails('${c.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategoryDetails('${c.id}')}"><div class="category-main" style="flex:1"><span class="category-icon-wrap">${categoryIcon(c.name)}</span><div class="category-content"><b>${esc(c.name)}</b><div class="muted category-amounts"><strong class="category-spent">${money(s)}</strong> di ${money(c.budget)} · residuo <strong class="category-residual ${over?"over-budget-text":""} ${full?"zero-residual":""}">${money(c.budget-s)}</strong></div><div class="bar"><i class="${over?"over-budget":full?"budget-full":""}" style="width:${pct}%"></i></div></div></div><span>${open?"⌃":"⌄"} ${over?"⚠":""}</span></div>${open?categoryExpenseDetails(c):""}</div>`}
 function toggleCategoryDetails(id){expandedCategoryId=expandedCategoryId===id?null:id;render()}
@@ -146,12 +151,12 @@ function nextDueDate(day,from=new Date()){
 }
 function daysUntil(d){const today=new Date();const a=new Date(today.getFullYear(),today.getMonth(),today.getDate());const b=new Date(d.getFullYear(),d.getMonth(),d.getDate());return Math.round((b-a)/86400000)}
 function upcomingExpenses(){
-  const items=state.categories.filter(c=>c.active&&c.dueDay).map(c=>{const date=nextDueDate(c.dueDay);return {c,date,days:daysUntil(date)}}).filter(x=>x.days>=0&&x.days<=5).sort((a,b)=>a.date-b.date);
-  if(!items.length)return `<div class="empty">Nessuna spesa imminente.</div>`;
-  return items.map(({c,date,days})=>`<div class="row upcoming-row"><div class="upcoming-date">${fmtDate(date.toISOString().slice(0,10))}</div><b class="upcoming-name">${esc(c.name)}</b><span class="upcoming-amount">${money(c.budget)}</span><span class="muted upcoming-days">${days===0?"oggi":days===1?"domani":`-${days} giorni`}</span></div>`).join("");
+  const items=state.categories.filter(c=>c.active&&c.dueDay).map(c=>{const date=nextDueDate(c.dueDay);return {c,date,days:daysUntil(date)}}).filter(x=>x.days>=0&&x.days<=7).sort((a,b)=>a.date-b.date);
+  const content=items.length?items.map(({c,date,days})=>{const method=effectivePaymentMethod(c.id,c.budget);return \`<article class="upcoming-card"><div class="upcoming-date-badge"><strong>${date.getDate()}</strong><span>${date.toLocaleDateString("it-IT",{month:"short"}).replace(".","")}</span></div><div class="upcoming-details"><strong>${esc(c.name)}</strong><span>${days===0?"In scadenza oggi":days===1?"Scade domani":\`Tra ${days} giorni\`} · ${method==="cash"?"Contanti":"Carta"}</span></div><strong class="upcoming-amount">${money(c.budget)}</strong></article>\`}).join(""):\`<div class="upcoming-empty">Nessun pagamento previsto nei prossimi 7 giorni.</div>\`;
+  return \`<section class="upcoming-dashboard"><div class="upcoming-dashboard-heading"><div><span class="eyebrow">PIANIFICAZIONE</span><h2>Spese imminenti</h2></div><span class="upcoming-count">${items.length} ${items.length===1?"pagamento":"pagamenti"}</span></div><div class="upcoming-cards">${content}</div></section>\`;
 }
 
-function expensesPage(){const month=monthKey().slice(0,7);const list=state.expenses.filter(e=>e.date?.slice(0,7)===month);return `${monthNav()}<div class="section"><h2>Spese</h2><div class="actions"><button class="primary" onclick="addExpense()">+ Aggiungi spesa</button><button class="secondary" onclick="exportCSV()">Esporta CSV</button></div>${list.length?list.map(e=>{let c=state.categories.find(x=>x.id===e.categoryId);return `<div class="expense"><div class="desc">${esc(e.description||"Spesa")}</div><div class="amount">${money(e.amount)}</div><div class="meta">${fmtDate(e.date)} · ${esc(c?.name||"Categoria archiviata")} <button class="secondary" style="padding:3px 7px;margin-left:6px" onclick="deleteExpense('${e.id}')">Elimina</button></div></div>`}).join(""):`<div class="empty">Nessuna spesa registrata per ${esc(monthLabel())}.</div>`}</div>`}
+function expensesPage(){const month=monthKey().slice(0,7);const list=state.expenses.filter(e=>e.date?.slice(0,7)===month);return `${monthNav()}<div class="section"><h2>Spese</h2><div class="actions"><button class="primary" onclick="addExpense()">+ Aggiungi spesa</button><button class="secondary" onclick="exportCSV()">Esporta CSV</button></div>${list.length?list.map(e=>{let c=state.categories.find(x=>x.id===e.categoryId);return `<div class="expense"><div class="desc">${esc(e.description||"Spesa")}</div><div class="amount">${money(e.amount)}</div><div class="meta">${fmtDate(e.date)} · ${esc(c?.name||"Categoria archiviata")} · ${e.paymentMethod==="cash"?"Contanti":"Carta"} <button class="secondary" style="padding:3px 7px;margin-left:6px" onclick="deleteExpense('${e.id}')">Elimina</button></div></div>`}).join(""):`<div class="empty">Nessuna spesa registrata per ${esc(monthLabel())}.</div>`}</div>`}
 function budgetPage(){const active=state.categories.filter(c=>c.active),archived=state.categories.filter(c=>!c.active);const activeHtml=active.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Attiva · speso ${money(spent(c.id))}${c.dueDay?` · ricorrente il ${String(c.dueDay).padStart(2,"0")} del mese`:""}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Modifica</button></div>`).join("")||`<div class="empty">Nessuna categoria attiva.</div>`;const archivedHtml=archived.length?`<div class="section"><details><summary class="muted" style="cursor:pointer">Categorie archiviate (${archived.length})</summary><div style="margin-top:12px">${archived.map(c=>`<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">Archiviata · speso ${money(spent(c.id))}${c.dueDay?` · ricorrente il ${String(c.dueDay).padStart(2,"0")} del mese`:""}</div></div><span>${money(c.budget)}</span><button class="secondary" onclick="editCategory('${c.id}')">Riattiva</button></div>`).join("")}</div></details></div>`:"";return `${monthNav()}<div class="section"><div class="actions"><button class="primary" onclick="addCategory()">+ Categoria</button></div><div class="section">${activeHtml}</div>${archivedHtml}</div>`}
 function annualPage(){return `<div class="section"><h2>Spese annuali</h2><p class="muted">Queste spese non entrano nel budget mensile.</p>${state.annual.map(a=>`<div class="row"><div><b>${esc(a.name)}</b><div class="muted">${a.date?fmtDate(a.date):"Data da inserire"} · ${esc(a.note)}</div></div><b>${money(a.amount)}</b></div>`).join("")}</div>`}
 function settingsPage(){return `${monthNav()}<div class="section"><h2>Impostazioni</h2><div class="form settings"><div class="field"><label>Entrate di ${esc(monthLabel())}</label><input id="income" type="number" step="0.01" value="${state.income}"></div><div class="field"><label>Risparmio di ${esc(monthLabel())}</label><input id="savings" type="number" step="0.01" value="${state.savings}"></div><button class="primary" onclick="saveSettings()">Salva impostazioni</button><div class="actions"><button class="secondary" onclick="exportJSON()">Backup JSON</button><button class="secondary" onclick="document.getElementById('importFile').click()">Importa JSON</button><input id="importFile" type="file" accept=".json" hidden onchange="importJSON(event)"></div></div><div class="section"><h2>Sincronizzazione</h2><p class="muted">${currentUser?.is_anonymous?"Questo dispositivo usa un profilo anonimo. Per conservare i dati già presenti, premi «Collega Google a questo account» su iPhone prima di accedere da altri dispositivi.":"Account collegato: "+esc(currentUser?.email||"Google")}</p>${currentUser?.is_anonymous?`<div class="actions"><button class="primary" onclick="linkGoogleAccount()">Collega Google a questo account</button><button class="secondary" onclick="switchToGoogle()">Accedi con Google su questo dispositivo</button></div>`:`<div class="actions"><button class="secondary" onclick="signOut()">Esci dall'account</button></div>`}</div><div class="section"><h2>Abbonamenti</h2>${state.subscriptions.map(s=>`<div class="row"><div><b>${esc(s.name)}</b><div class="muted">${s.active?"Attivo":"Disdetto"} · ${esc(s.frequency)}</div></div><span>${money(s.amount)}</span></div>`).join("")}</div></div>`}
