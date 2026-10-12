@@ -116,12 +116,12 @@ function render(){
 
 function dashboard(){
  const available=state.income-state.savings-totalSpent();
- return `${monthNav()}<div class="hero"><small>Budget operativo</small><h1>${money(state.income-state.savings)}</h1><span>${money(state.savings)} accantonati nel mese</span></div>
+ return `${monthNav()}<div class="hero hero-residual"><small>Budget residuo</small><h1>${money(available)}</h1><span>Disponibile questo mese dopo le spese registrate</span></div><div class="operating-budget"><span>Budget operativo</span><strong>${money(state.income-state.savings)}</strong><span class="muted"> · ${money(state.savings)} accantonati</span></div>
  <div class="grid"><div class="card"><div class="label">Entrate</div><div class="value">${money(state.income)}</div></div><div class="card"><div class="label">Risparmio</div><div class="value">${money(state.savings)}</div></div><div class="card"><div class="label">Speso</div><div class="value">${money(totalSpent())}</div></div><div class="card"><div class="label">Budget residuo</div><div class="value">${money(available)}</div></div><div class="card"><div class="label">Cuscinetto</div><div class="value ${cushion()<0?"danger":""}">${money(cushion())}</div></div><div class="card"><div class="label">Spese registrate</div><div class="value">${state.expenses.filter(x=>x.date?.slice(0,7)===monthKey().slice(0,7)).length}</div></div></div>
  <div class="section upcoming-section"><h2>Spese imminenti</h2>${upcomingExpenses()}</div>
  <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(catRow).join("")||`<div class="empty">Nessuna categoria attiva.</div>`}</div>`;
 }
-function catRow(c){let s=spent(c.id),pct=c.budget?Math.min(100,s/c.budget*100):0;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">${money(s)} di ${money(c.budget)} · residuo ${money(c.budget-s)}</div><div class="bar"><i style="width:${pct}%"></i></div></div><span>${s>c.budget?"⚠":""}</span></div>`}
+function catRow(c){let s=spent(c.id),over=s>c.budget,pct=c.budget?Math.min(100,s/c.budget*100):0;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted">${money(s)} di ${money(c.budget)} · residuo ${money(c.budget-s)}</div><div class="bar"><i class="${over?"over-budget":""}" style="width:${pct}%"></i></div></div><span>${over?"⚠":""}</span></div>`}
 
 function nextDueDate(day,from=new Date()){
   if(!day)return null;
