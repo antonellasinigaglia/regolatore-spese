@@ -23,3 +23,16 @@ html,body,#app,.shell{background-color:#fff!important}
 
 /* Force pure white page canvas across desktop and installed PWA */
 html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !important; }
+
+/* Expandable expense history inside each category row */
+.category-row{cursor:pointer;transition:background-color .15s ease;padding-left:8px;padding-right:8px;border-radius:8px}
+.category-row:hover,.category-row:focus-visible{background:#f2fbfa;outline:2px solid #81d8d0;outline-offset:-2px}
+.category-row>span{white-space:nowrap;color:#287f78;font-size:14px}
+.category-expenses{margin:0 0 12px 8px;padding:8px 14px 12px;border-left:3px solid #81d8d0;background:#f8fcfb;border-radius:0 0 10px 10px}
+.category-expense{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:10px 0;border-bottom:1px solid #e1eeeb}
+.category-expense:last-of-type{border-bottom:0}
+.category-expense>div{min-width:0}
+.category-expense strong{overflow-wrap:anywhere}
+.category-expense .muted{font-size:13px;margin-top:3px}
+.category-total{display:flex;justify-content:space-between;gap:12px;padding-top:12px;margin-top:6px;border-top:1px solid #d4e5e1}
+.category-empty{padding:12px 0}
