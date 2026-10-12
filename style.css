@@ -370,3 +370,36 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
   #app .upcoming-details>span .payment-inline *{font-size:16px!important}
   #app .upcoming-amount{font-size:20px!important}
 }
+
+
+/* Expense modal must sit above the sticky KPI strip and the floating button */
+body:has(#modal) .kpi-sticky,
+body:has(#modal) .mobile-fab{visibility:hidden!important;pointer-events:none!important}
+#modal.modal{
+  position:fixed!important;
+  inset:0!important;
+  z-index:200000!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+}
+#modal .modalbox{
+  position:relative!important;
+  z-index:200001!important;
+  width:min(620px,100%)!important;
+  max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px)!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+  margin:auto!important;
+}
+@media(max-width:700px){
+  #modal.modal{align-items:flex-start!important;padding-top:max(16px,env(safe-area-inset-top))!important;padding-bottom:max(16px,env(safe-area-inset-bottom))!important}
+  #modal .modalbox{max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px)!important;padding:18px!important}
+  #modal .form{padding:0!important;border:0!important;gap:14px!important}
+  #modal .field label{font-size:16px!important}
+  #modal .field input,#modal .field select{font-size:16px!important;min-height:48px!important}
+  #modal .payment-preview{font-size:16px!important}
+}
