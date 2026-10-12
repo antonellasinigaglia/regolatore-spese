@@ -128,7 +128,7 @@ function dashboard(){
  <div class="section upcoming-section"><h2>Spese imminenti</h2>${upcomingExpenses()}</div>
  <div class="section"><h2>Budget categorie</h2>${state.categories.filter(c=>c.active).map(catRow).join("")||`<div class="empty">Nessuna categoria attiva.</div>`}</div>`;
 }
-function catRow(c){let s=spent(c.id),over=s>c.budget,pct=c.budget?Math.min(100,s/c.budget*100):0;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted category-amounts"><strong class="category-spent">${money(s)}</strong> di ${money(c.budget)} · residuo <strong class="category-residual ${over?"over-budget-text":""}">${money(c.budget-s)}</strong></div><div class="bar"><i class="${over?"over-budget":""}" style="width:${pct}%"></i></div></div><span>${over?"⚠":""}</span></div>`}
+function catRow(c){let s=spent(c.id),over=s>c.budget,full=c.budget>0&&s===c.budget,pct=c.budget?Math.min(100,s/c.budget*100):0;return `<div class="row"><div style="flex:1"><b>${esc(c.name)}</b><div class="muted category-amounts"><strong class="category-spent">${money(s)}</strong> di ${money(c.budget)} · residuo <strong class="category-residual ${over?"over-budget-text":""}">${money(c.budget-s)}</strong></div><div class="bar"><i class="${over?"over-budget":full?"budget-full":""}" style="width:${pct}%"></i></div></div><span>${over?"⚠":""}</span></div>`}
 
 function nextDueDate(day,from=new Date()){
   if(!day)return null;
