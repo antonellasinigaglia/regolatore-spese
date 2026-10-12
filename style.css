@@ -39,3 +39,6 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 
 /* Use the same red as the SPESO amount for the cuscinetto and over-budget values */
 .grid .card:nth-child(3) .value,.grid .card.cushion .value,.grid .card:nth-child(5) .value,.danger,.category-amounts .category-residual.over-budget-text{color:#ee1740!important}
+
+/* Match RISPARMIO to the green used by BUDGET RESIDUO */
+.grid .card:nth-child(2) .value{color:#59ae50!important}
