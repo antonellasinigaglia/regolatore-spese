@@ -10,3 +10,10 @@
 .category-amounts .category-spent{font-weight:800;color:#171717}
 .category-amounts .category-residual{font-weight:800;color:#3f4543}
 .category-amounts .category-residual.over-budget-text{color:#d7193f}
+
+/* Budget residuo: white card with Tiffany outline and subtle shadow */
+.hero-residual{background:#fff!important;color:#171717!important;border:4px solid #81d8d0!important;box-shadow:0 5px 16px rgba(34,112,105,.12)!important}
+.hero-residual small{color:#287f78!important;opacity:1!important}
+.hero-residual h1{color:#171717!important}
+.hero-residual span{color:#525b59!important}
+.bar i.budget-full{background:#59ae50!important}
