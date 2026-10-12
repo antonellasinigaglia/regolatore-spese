@@ -87,3 +87,14 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 .payment-preview strong{color:#202925}
 @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.upcoming-cards{grid-template-columns:1fr}}
 @media(max-width:700px){.grid{grid-template-columns:1fr}.upcoming-dashboard{padding:14px;margin-top:10px}.upcoming-dashboard-heading h2{font-size:19px}.upcoming-card{padding:10px}.payment-kpi .value{font-size:25px}}
+
+/* Mobile floating action and consistent KPI label treatment */
+.mobile-fab{display:none}
+.unclassified-kpi{border-color:#e5dfd2;background:#fffdf8}
+.hero-residual small{font-size:12px!important;color:#73736e!important;text-transform:uppercase!important;letter-spacing:.05em!important;font-weight:600!important}
+@media(max-width:700px){
+  .mobile-fab{display:flex;align-items:center;justify-content:center;gap:7px;position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:1000;border:0;border-radius:999px;background:#171717;color:#fff;padding:15px 20px;min-height:52px;box-shadow:0 8px 24px rgba(0,0,0,.22);font-weight:650}
+  .mobile-fab span{font-size:20px;line-height:1}
+  .top .actions{display:none}
+  .shell{padding-bottom:110px}
+}
