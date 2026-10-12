@@ -8,7 +8,7 @@
 .hero-residual h1{color:#fff}
 .hero-residual span{color:#ecfdf5}
 .category-amounts .category-spent{font-weight:800;color:#171717}
-.category-amounts .category-residual{font-weight:800;color:#3f4543}
+.category-amounts .category-residual{font-weight:800;color:#39a6c2}
 .category-amounts .category-residual.over-budget-text{color:#d7193f}
 
 /* Budget residuo: white card with Tiffany outline and subtle shadow */
@@ -44,4 +44,4 @@ html, body, #app, #app > main, #app .shell, main.shell { background: #ffffff !im
 .grid .card:nth-child(2) .value{color:#59ae50!important}
 
 /* Match the hero and summary remaining-budget amounts using the lighter Tiffany blue */
-.hero-residual h1,.grid .card:nth-child(4) .value{color:#55cfc4!important}
+.hero-residual h1,.grid .card:nth-child(4) .value,.category-amounts .category-residual{color:#39a6c2!important}
